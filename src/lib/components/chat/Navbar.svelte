@@ -38,7 +38,10 @@
 	import ChatPlus from '../icons/ChatPlus.svelte';
 	import ChatCheck from '../icons/ChatCheck.svelte';
 	import Knobs from '../icons/Knobs.svelte';
+	import { Bug } from 'lucide-svelte';
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import Modal from '../common/Modal.svelte';
+	import XMark from '../icons/XMark.svelte';
 
 	const i18n = getContext('i18n');
 
@@ -59,6 +62,7 @@
 
 	let showShareChatModal = false;
 	let showDownloadChatModal = false;
+	let showBugReportModal = false;
 </script>
 
 <ShareChatModal bind:show={showShareChatModal} chatId={$chatId} />
@@ -210,6 +214,20 @@
 						</Menu>
 					{/if}
 
+					<Tooltip content={$i18n.t('Bug Report')}>
+						<button
+							class=" flex cursor-pointer px-2 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-850 transition"
+							on:click={() => {
+								showBugReportModal = true;
+							}}
+							aria-label="Bug Report"
+						>
+							<div class=" m-auto self-center">
+								<Bug className=" size-5" strokeWidth="1" />
+							</div>
+						</button>
+					</Tooltip>
+
 					{#if $user?.role === 'admin' || ($user?.permissions.chat?.controls ?? true)}
 						<Tooltip content={$i18n.t('Controls')}>
 							<button
@@ -318,3 +336,39 @@
 		{/if}
 	</div>
 </nav>
+
+<Modal bind:show={showBugReportModal} size="xl" className="bg-white dark:bg-gray-900 dark:text-gray-100">
+	<div class="flex flex-col h-[80vh] max-h-[80vh]">
+		<div class="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-200 dark:border-gray-800">
+			<h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{$i18n.t('Bug Report')}</h2>
+			<div class="flex items-center gap-2">
+				<a
+					href="https://forms.clickup.com/9018518542/p/f/8crqb0e-41778/HMGDMERJMOT6DKL1QQ/feedback-form"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+				>
+					{$i18n.t('Open in New Window')}
+				</a>
+				<button
+					class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+					on:click={() => {
+						showBugReportModal = false;
+					}}
+					aria-label="Close"
+				>
+					<XMark className="size-5" />
+				</button>
+			</div>
+		</div>
+		<div class="flex-1 overflow-hidden relative">
+			<iframe
+				src="https://forms.clickup.com/9018518542/p/f/8crqb0e-41778/HMGDMERJMOT6DKL1QQ/feedback-form"
+				class="w-full h-full border-0"
+				title="Bug Report Form"
+				sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
+				referrerpolicy="strict-origin-when-cross-origin"
+			></iframe>
+		</div>
+	</div>
+</Modal>
