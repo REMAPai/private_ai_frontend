@@ -1656,6 +1656,38 @@ async def chat_completion(
                 pass
             finally:
                 raise  # re-raise to ensure proper task cancellation handling
+        except HTTPException as e:
+            # Handle HTTPException (e.g., 429 quota exceeded from token gateway)
+            log.debug(f"HTTPException in chat processing: {e.status_code} - {e.detail}")
+            error_message = e.detail if e.detail else f"HTTP {e.status_code} error"
+            if metadata.get("chat_id") and metadata.get("message_id"):
+                # Update the chat message with the error
+                try:
+                    if not metadata["chat_id"].startswith("local:"):
+                        Chats.upsert_message_to_chat_by_id_and_message_id(
+                            metadata["chat_id"],
+                            metadata["message_id"],
+                            {
+                                "parentId": metadata.get("parent_message_id", None),
+                                "error": {"content": error_message},
+                            },
+                        )
+
+                    event_emitter = get_event_emitter(metadata)
+                    await event_emitter(
+                        {
+                            "type": "chat:message:error",
+                            "data": {"error": {"content": error_message, "detail": error_message}},
+                        }
+                    )
+                    await event_emitter(
+                        {"type": "chat:tasks:cancel"},
+                    )
+
+                except:
+                    pass
+            # Re-raise to return proper HTTP error response
+            raise
         except Exception as e:
             log.debug(f"Error processing chat payload: {e}")
             if metadata.get("chat_id") and metadata.get("message_id"):

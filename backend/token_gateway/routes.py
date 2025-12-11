@@ -75,7 +75,8 @@ async def _forward_request(
     if request.method in ("POST", "PUT", "PATCH"):
         raw_payload = await request.json()
 
-    user_id = get_user_from_headers(request.headers)
+    # Get and validate user_id from headers - ensures we use user.id from User table
+    user_id = get_user_from_headers(request.headers, db)
     rate_limiter: SimpleRateLimiter = request.app.state.rate_limiter
 
     try:
@@ -106,10 +107,14 @@ async def _forward_request(
 
     # Forward the request
     query_params = dict(request.query_params)
+    # Remove Content-Length from headers since we're reconstructing the body
+    # and httpx will calculate the correct length
+    forward_headers = {k: v for k, v in request.headers.items() 
+                      if k.lower() != "content-length"}
     response = await provider.forward(
         path,
         raw_payload,
-        dict(request.headers),
+        forward_headers,
         method=request.method,
         params=query_params,
     )
@@ -148,6 +153,9 @@ async def list_models_short(
     """Compatibility endpoint: /models -> /v1/models"""
     try:
         return await _forward_request("/v1/models", request, db, settings)
+    except HTTPException:
+        # Re-raise HTTPException to preserve status code and error details
+        raise
     except Exception as e:
         logger.exception(f"Error in list_models_short: {e}")
         raise HTTPException(
@@ -164,8 +172,34 @@ async def list_models(
 ):
     try:
         return await _forward_request("/v1/models", request, db, settings)
+    except HTTPException:
+        # Re-raise HTTPException to preserve status code and error details
+        raise
     except Exception as e:
         logger.exception(f"Error in list_models: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}",
+        )
+
+
+@router.post(
+    "/chat/completions",
+    dependencies=[Depends(require_gateway_key)],
+)
+async def chat_completions_short(
+    request: Request,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    """Compatibility endpoint: /chat/completions -> /v1/chat/completions"""
+    try:
+        return await _forward_request("/v1/chat/completions", request, db, settings)
+    except HTTPException:
+        # Re-raise HTTPException (e.g., 429 quota exceeded) to preserve status code and error details
+        raise
+    except Exception as e:
+        logger.exception(f"Error in chat_completions_short: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal server error: {str(e)}",

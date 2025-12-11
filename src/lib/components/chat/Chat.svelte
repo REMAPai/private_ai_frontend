@@ -1986,26 +1986,53 @@
 		).catch(async (error) => {
 			console.log(error);
 
-			let errorMessage = error;
-			if (error?.error?.message) {
-				errorMessage = error.error.message;
-			} else if (error?.message) {
-				errorMessage = error.message;
+			// Stop any ongoing generation
+			if (generating) {
+				generating = false;
+				generationController?.abort();
+				generationController = null;
 			}
 
-			if (typeof errorMessage === 'object') {
+			// Extract error message from various possible formats
+			let errorMessage = '';
+			if (error?.error?.message) {
+				// OpenAI error format: {error: {message: "..."}}
+				errorMessage = error.error.message;
+			} else if (error?.detail) {
+				// FastAPI error format: {detail: "..."}
+				errorMessage = error.detail;
+			} else if (error?.message) {
+				// Standard error format: {message: "..."}
+				errorMessage = error.message;
+			} else if (typeof error === 'string') {
+				errorMessage = error;
+			} else {
 				errorMessage = $i18n.t(`Uh-oh! There was an issue with the response.`);
 			}
 
-			toast.error(`${errorMessage}`);
+			// Show error toast
+			toast.error(errorMessage);
+			
+			// Store full error object for display in error component
 			responseMessage.error = {
-				content: error
+				content: errorMessage,
+				detail: errorMessage,
+				...error
 			};
 
 			responseMessage.done = true;
 
 			history.messages[responseMessageId] = responseMessage;
 			history.currentId = responseMessageId;
+
+			// Emit error event to stop any ongoing processing
+			eventTarget.dispatchEvent(
+				new CustomEvent('chat:stop', {
+					detail: {
+						id: responseMessageId
+					}
+				})
+			);
 
 			return null;
 		});
@@ -2027,6 +2054,13 @@
 	};
 
 	const handleOpenAIError = async (error, responseMessage) => {
+		// Stop any ongoing generation
+		if (generating) {
+			generating = false;
+			generationController?.abort();
+			generationController = null;
+		}
+
 		let errorMessage = '';
 		let innerError;
 
@@ -2066,6 +2100,15 @@
 		}
 
 		history.messages[responseMessage.id] = responseMessage;
+
+		// Emit stop event to cancel any ongoing processing
+		eventTarget.dispatchEvent(
+			new CustomEvent('chat:stop', {
+				detail: {
+					id: responseMessage.id
+				}
+			})
+		);
 	};
 
 	const stopResponse = async () => {

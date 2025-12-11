@@ -406,11 +406,24 @@ export const generateOpenAIChatCompletion = async (
 		body: JSON.stringify(body)
 	})
 		.then(async (res) => {
-			if (!res.ok) throw await res.json();
+			if (!res.ok) {
+				const errorData = await res.json();
+				// Preserve the full error object so frontend can access error.message or error.error.message
+				throw errorData;
+			}
 			return res.json();
 		})
 		.catch((err) => {
-			error = err?.detail ?? err;
+			// Extract error message from various possible formats
+			if (err?.error?.message) {
+				error = err.error.message;
+			} else if (err?.detail) {
+				error = err.detail;
+			} else if (err?.message) {
+				error = err.message;
+			} else {
+				error = err;
+			}
 			return null;
 		});
 

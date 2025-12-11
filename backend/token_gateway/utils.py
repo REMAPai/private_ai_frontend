@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from token_gateway.config import Settings
 from open_webui.models.subscriptions import Client, SubscriptionPlan, UsagePerUser
+from open_webui.models.users import Users
 
 logger = logging.getLogger(__name__)
 
@@ -35,12 +36,34 @@ class SimpleRateLimiter:
             return True, None
 
 
-def get_user_from_headers(headers: Dict[str, str]) -> str:
-    return (
+def get_user_from_headers(headers: Dict[str, str], session: Optional[Session] = None) -> str:
+    """
+    Extract user_id from headers and validate it exists in the User table.
+    Returns the user.id from the User table to ensure we're using the correct user_id.
+    """
+    user_id_from_header = (
         headers.get("X-OpenWebUI-User-Id")
         or headers.get("X-User-Id")
-        or "anonymous"
+        or None
     )
+    
+    if not user_id_from_header:
+        return "anonymous"
+    
+    # Validate that the user_id exists in the User table
+    # This ensures we're using the actual user.id from the User table, not just any ID
+    try:
+        user = Users.get_user_by_id(user_id_from_header)
+        if user and user.id:
+            # Return the validated user.id from the User table
+            logger.debug(f"Validated user_id from header: {user_id_from_header} -> {user.id}")
+            return user.id
+        else:
+            logger.warning(f"User ID from header not found in User table: {user_id_from_header}")
+            return "anonymous"
+    except Exception as e:
+        logger.error(f"Error validating user_id from header {user_id_from_header}: {e}")
+        return "anonymous"
 
 
 def estimate_tokens_from_messages(messages, model: str) -> int:
@@ -94,6 +117,18 @@ def _reset_window_if_needed(client: Client, session: Session):
 def resolve_limits(
     session: Session, user_id: str, settings: Settings
 ) -> Tuple[int, UsagePerUser, Optional[Client], Optional[SubscriptionPlan]]:
+    """
+    Resolve token limits for a user.
+    
+    Args:
+        session: Database session
+        user_id: The user.id from the User table (validated via get_user_from_headers)
+        settings: Gateway settings
+        
+    Returns:
+        Tuple of (allowed_tokens, UsagePerUser record, Client, SubscriptionPlan)
+    """
+    # Query UsagePerUser by user_id (which references user.id from User table)
     usage = (
         session.query(UsagePerUser)
         .filter(UsagePerUser.user_id == user_id)
@@ -112,10 +147,13 @@ def resolve_limits(
         allowed = plan.tokens_per_seat * seats
 
     if not usage:
+        # Create new UsagePerUser record with user_id from User table
+        # user_id must be the user.id from the User table (validated via get_user_from_headers)
         usage = UsagePerUser(user_id=user_id, used_tokens=0, client_id=client.id if client else None)
         session.add(usage)
         session.commit()
         session.refresh(usage)
+        logger.info(f"Created new UsagePerUser record for user_id: {user_id}")
 
     return allowed, usage, client, plan
 
@@ -126,18 +164,42 @@ def enforce_quota(
     estimated_tokens: int,
     settings: Settings,
 ) -> None:
-    allowed, usage, _, _ = resolve_limits(session, user_id, settings)
+    allowed, usage, client, plan = resolve_limits(session, user_id, settings)
 
     if usage.used_tokens + estimated_tokens > allowed:
+        # Create a detailed error message with quota information
+        remaining = max(0, allowed - usage.used_tokens)
+        error_detail = (
+            f"Token quota exceeded. You have used {usage.used_tokens:,} of {allowed:,} tokens. "
+            f"Remaining: {remaining:,} tokens. This request requires approximately {estimated_tokens:,} tokens."
+        )
+        if plan and plan.plan_name:
+            error_detail += f" Your current plan: {plan.plan_name}."
+        
         raise HTTPException(
             status_code=429,
-            detail="Token quota exceeded for user",
+            detail=error_detail,
+            headers={
+                "X-Tokens-Allowed": str(allowed),
+                "X-Tokens-Used": str(usage.used_tokens),
+                "X-Tokens-Remaining": str(remaining),
+                "X-Tokens-Requested": str(estimated_tokens),
+            },
         )
 
 
 def record_usage(session: Session, usage: UsagePerUser, tokens_used: int):
+    """
+    Record token usage for a user.
+    
+    Args:
+        session: Database session
+        usage: UsagePerUser record (contains user_id which references user.id from User table)
+        tokens_used: Number of tokens used
+    """
     usage.used_tokens += max(tokens_used, 0)
     usage.updated_at = datetime.utcnow()
     session.commit()
+    logger.debug(f"Recorded {tokens_used} tokens for user_id: {usage.user_id}, total: {usage.used_tokens}")
 
 

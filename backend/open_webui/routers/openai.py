@@ -173,7 +173,10 @@ async def get_headers_and_cookies(
         ),
     }
 
-    if ENABLE_FORWARD_USER_INFO_HEADERS and user:
+    # Always forward user info headers to token gateway (pipelines:9099) for proper user tracking
+    # Also forward if ENABLE_FORWARD_USER_INFO_HEADERS is enabled
+    is_token_gateway = "pipelines:9099" in url or "localhost:9099" in url or "127.0.0.1:9099" in url
+    if user and (ENABLE_FORWARD_USER_INFO_HEADERS or is_token_gateway):
         headers = include_user_info_headers(headers, user)
         if metadata and metadata.get("chat_id"):
             headers["X-OpenWebUI-Chat-Id"] = metadata.get("chat_id")
@@ -996,6 +999,54 @@ async def generate_chat_completion(
 
         # Check if response is SSE
         if "text/event-stream" in r.headers.get("Content-Type", ""):
+            # If it's an error response (4xx or 5xx), don't stream it
+            if r.status >= 400:
+                # Read error response and format it properly
+                try:
+                    error_data = await r.json()
+                except Exception:
+                    error_data = {"detail": await r.text()}
+                
+                await cleanup_response(r, session)
+                
+                # Extract error message
+                error_message = None
+                if isinstance(error_data, dict):
+                    error_message = error_data.get("detail") or (error_data.get("error", {}).get("message") if isinstance(error_data.get("error"), dict) else str(error_data))
+                elif isinstance(error_data, str):
+                    error_message = error_data
+                else:
+                    error_message = str(error_data)
+                
+                # For 429 errors (quota exceeded), raise HTTPException to stop execution
+                if r.status == 429:
+                    tokens_allowed = r.headers.get("X-Tokens-Allowed")
+                    tokens_used = r.headers.get("X-Tokens-Used")
+                    tokens_remaining = r.headers.get("X-Tokens-Remaining")
+                    
+                    raise HTTPException(
+                        status_code=429,
+                        detail=error_message or "Token quota exceeded",
+                        headers={
+                            "X-Tokens-Allowed": tokens_allowed or "",
+                            "X-Tokens-Used": tokens_used or "",
+                            "X-Tokens-Remaining": tokens_remaining or "",
+                        }
+                    )
+                
+                # For other errors, format and return JSONResponse
+                if isinstance(error_data, dict):
+                    if "detail" in error_data and "error" not in error_data:
+                        error_response = {
+                            "error": {
+                                "message": error_data["detail"],
+                                "type": "api_error",
+                                "code": r.status,
+                            }
+                        }
+                        return JSONResponse(status_code=r.status, content=error_response)
+                return JSONResponse(status_code=r.status, content=error_data)
+            
             streaming = True
             return StreamingResponse(
                 stream_chunks_handler(r.content),
@@ -1013,12 +1064,67 @@ async def generate_chat_completion(
                 response = await r.text()
 
             if r.status >= 400:
-                if isinstance(response, (dict, list)):
+                # Extract error message
+                error_message = None
+                if isinstance(response, dict):
+                    error_message = response.get("detail") or response.get("error", {}).get("message") if isinstance(response.get("error"), dict) else str(response)
+                elif isinstance(response, str):
+                    error_message = response
+                else:
+                    error_message = str(response)
+                
+                # For 429 errors (quota exceeded), raise HTTPException to stop execution
+                if r.status == 429:
+                    # Include quota information from headers if available
+                    error_detail = error_message or "Token quota exceeded"
+                    tokens_allowed = r.headers.get("X-Tokens-Allowed")
+                    tokens_used = r.headers.get("X-Tokens-Used")
+                    tokens_remaining = r.headers.get("X-Tokens-Remaining")
+                    
+                    # Enhance error message with quota details if available
+                    if tokens_allowed or tokens_used:
+                        error_detail = error_message or "Token quota exceeded"
+                    
+                    raise HTTPException(
+                        status_code=429,
+                        detail=error_detail,
+                        headers={
+                            "X-Tokens-Allowed": tokens_allowed or "",
+                            "X-Tokens-Used": tokens_used or "",
+                            "X-Tokens-Remaining": tokens_remaining or "",
+                        }
+                    )
+                
+                # For other errors, format and return JSONResponse
+                if isinstance(response, dict):
+                    # If it's a FastAPI error format with "detail", convert to OpenAI error format
+                    if "detail" in response and "error" not in response:
+                        error_response = {
+                            "error": {
+                                "message": response["detail"],
+                                "type": "api_error",
+                                "code": r.status,
+                            }
+                        }
+                        return JSONResponse(status_code=r.status, content=error_response)
+                    return JSONResponse(status_code=r.status, content=response)
+                elif isinstance(response, list):
                     return JSONResponse(status_code=r.status, content=response)
                 else:
-                    return PlainTextResponse(status_code=r.status, content=response)
+                    # Plain text error - convert to error format
+                    error_response = {
+                        "error": {
+                            "message": str(response),
+                            "type": "api_error",
+                            "code": r.status,
+                        }
+                    }
+                    return JSONResponse(status_code=r.status, content=error_response)
 
             return response
+    except HTTPException:
+        # Re-raise HTTPException (e.g., 429 quota exceeded) to preserve status code and error details
+        raise
     except Exception as e:
         log.exception(e)
 
