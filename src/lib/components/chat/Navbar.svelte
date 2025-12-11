@@ -337,10 +337,18 @@
 	</div>
 </nav>
 
-<Modal bind:show={showBugReportModal} size="xl" className="bg-white dark:bg-gray-900 dark:text-gray-100">
+<Modal
+	bind:show={showBugReportModal}
+	size="xl"
+	className="bg-white dark:bg-gray-900 dark:text-gray-100"
+>
 	<div class="flex flex-col h-[80vh] max-h-[80vh]">
-		<div class="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-200 dark:border-gray-800">
-			<h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{$i18n.t('Bug Report')}</h2>
+		<div
+			class="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-200 dark:border-gray-800"
+		>
+			<h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+				{$i18n.t('Bug Report')}
+			</h2>
 			<div class="flex items-center gap-2">
 				<a
 					href="https://forms.clickup.com/9018518542/p/f/8crqb0e-41778/HMGDMERJMOT6DKL1QQ/feedback-form"
