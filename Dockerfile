@@ -35,6 +35,7 @@ WORKDIR /app
 RUN apk add --no-cache git
 
 COPY package.json package-lock.json ./
+RUN echo "Node version:" && node -v && echo "NPM version:" && npm -v
 RUN npm ci --force
 
 COPY . .
