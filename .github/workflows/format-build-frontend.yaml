@@ -4,7 +4,8 @@ on:
   push:
     branches:
       - main
-      - dev
+      - development
+      - staging
     paths-ignore:
       - 'backend/**'
       - 'pyproject.toml'
@@ -12,7 +13,8 @@ on:
   pull_request:
     branches:
       - main
-      - dev
+      - development
+      - staging
     paths-ignore:
       - 'backend/**'
       - 'pyproject.toml'

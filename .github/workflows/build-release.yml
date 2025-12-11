@@ -3,7 +3,9 @@ name: Release
 on:
   push:
     branches:
-      - main # or whatever branch you want to use
+      - main
+      - development
+      - staging
 
 jobs:
   release:
