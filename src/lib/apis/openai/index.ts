@@ -250,11 +250,23 @@ export const getOpenAIModels = async (token: string, urlIdx?: number) => {
 		}
 	)
 		.then(async (res) => {
-			if (!res.ok) throw await res.json();
+			if (!res.ok) {
+				const errorData = await res.json();
+				throw errorData;
+			}
 			return res.json();
 		})
 		.catch((err) => {
-			error = `OpenAI: ${err?.error?.message ?? 'Network Problem'}`;
+			// Handle FastAPI error format (detail field) or other error formats
+			if (err?.detail) {
+				error = err.detail;
+			} else if (err?.error?.message) {
+				error = err.error.message;
+			} else if (typeof err === 'string') {
+				error = err;
+			} else {
+				error = 'Network Problem';
+			}
 			return [];
 		});
 
@@ -267,7 +279,7 @@ export const getOpenAIModels = async (token: string, urlIdx?: number) => {
 
 export const verifyOpenAIConnection = async (
 	token: string = '',
-	connection: dict = {},
+	connection: Record<string, any> = {},
 	direct: boolean = false
 ) => {
 	const { url, key, config } = connection;
@@ -288,11 +300,29 @@ export const verifyOpenAIConnection = async (
 			}
 		})
 			.then(async (res) => {
-				if (!res.ok) throw await res.json();
+				if (!res.ok) {
+					let errorData;
+					try {
+						errorData = await res.json();
+					} catch {
+						errorData = { error: { message: `HTTP ${res.status}: ${res.statusText}` } };
+					}
+					throw errorData;
+				}
 				return res.json();
 			})
 			.catch((err) => {
-				error = `OpenAI: ${err?.error?.message ?? 'Network Problem'}`;
+				console.error('OpenAI connection verification error:', err);
+				// Handle different error types
+				if (err?.error?.message) {
+					error = `OpenAI: ${err.error.message}`;
+				} else if (err?.message) {
+					error = `OpenAI: ${err.message}`;
+				} else if (typeof err === 'string') {
+					error = `OpenAI: ${err}`;
+				} else {
+					error = `OpenAI: Network Problem - ${err?.toString() ?? 'Unknown error'}`;
+				}
 				return [];
 			});
 

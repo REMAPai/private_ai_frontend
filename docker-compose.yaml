@@ -23,8 +23,37 @@ services:
     environment:
 #      - 'OLLAMA_BASE_URL=http://ollama:11434'
       - 'WEBUI_SECRET_KEY='
+      - 'TOKEN_GATEWAY_URL=http://pipelines:9099'
+      - 'OPENAI_API_BASE_URL=http://pipelines:9099'
+      - 'OPENAI_API_KEY=${TOKEN_GATEWAY_API_KEY-gateway-dev-key}'
+    depends_on:
+      - pipelines
     extra_hosts:
       - host.docker.internal:host-gateway
+    restart: unless-stopped
+
+  pipelines:
+    build:
+      context: .
+      dockerfile: backend/token_gateway/Dockerfile
+    container_name: token_gateway
+    environment:
+      - 'GATEWAY_HOST=0.0.0.0'
+      - 'GATEWAY_PORT=9099'
+      - 'TOKEN_GATEWAY_API_KEY=${TOKEN_GATEWAY_API_KEY-gateway-dev-key}'
+      - 'TOKEN_GATEWAY_DEFAULT_TOKENS=${TOKEN_GATEWAY_DEFAULT_TOKENS-100000}'
+      - 'TOKEN_GATEWAY_RATE_LIMIT_PER_MINUTE=${TOKEN_GATEWAY_RATE_LIMIT_PER_MINUTE-120}'
+      - 'DATABASE_URL=${DATABASE_URL-sqlite:////app/backend/data/webui.db}'
+      - 'OPENAI_API_KEY=${OPENAI_API_KEY-}'
+      - 'OPENAI_API_BASE_URL=${OPENAI_API_BASE_URL-https://api.openai.com/v1}'
+      - 'ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY-}'
+      - 'ANTHROPIC_API_BASE_URL=${ANTHROPIC_API_BASE_URL-https://api.anthropic.com}'
+      - 'GEMINI_API_KEY=${GEMINI_API_KEY-}'
+      - 'GEMINI_API_BASE_URL=${GEMINI_API_BASE_URL-https://generativelanguage.googleapis.com/v1beta}'
+    volumes:
+      - open-webui:/app/backend/data
+    ports:
+      - "9099:9099"
     restart: unless-stopped
 
 volumes:

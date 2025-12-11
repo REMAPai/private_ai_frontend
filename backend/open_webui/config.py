@@ -1034,7 +1034,8 @@ ENABLE_OPENAI_API = PersistentConfig(
 
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-OPENAI_API_BASE_URL = os.environ.get("OPENAI_API_BASE_URL", "")
+TOKEN_GATEWAY_URL = os.environ.get("TOKEN_GATEWAY_URL", "http://pipelines:9099")
+OPENAI_API_BASE_URL = os.environ.get("OPENAI_API_BASE_URL", TOKEN_GATEWAY_URL)
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_API_BASE_URL = os.environ.get("GEMINI_API_BASE_URL", "")

@@ -48,6 +48,16 @@ from open_webui.utils.misc import (
 )
 
 from open_webui.utils.auth import get_admin_user, get_verified_user
+
+
+def translate_localhost_to_docker_service(url: str) -> str:
+    """
+    Translate localhost:9099 to pipelines:9099 for Docker container communication.
+    This allows the UI to use localhost (for browser access) while the backend uses the service name.
+    """
+    if "localhost:9099" in url or "127.0.0.1:9099" in url:
+        return url.replace("localhost:9099", "pipelines:9099").replace("127.0.0.1:9099", "pipelines:9099")
+    return url
 from open_webui.utils.access_control import has_access
 from open_webui.utils.headers import include_user_info_headers
 
@@ -64,6 +74,9 @@ log.setLevel(SRC_LOG_LEVELS["OPENAI"])
 
 
 async def send_get_request(url, key=None, user: UserModel = None):
+    # Translate localhost:9099 to pipelines:9099 for Docker container communication
+    url = translate_localhost_to_docker_service(url)
+    
     timeout = aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST)
     try:
         async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as session:
@@ -79,11 +92,33 @@ async def send_get_request(url, key=None, user: UserModel = None):
                 headers=headers,
                 ssl=AIOHTTP_CLIENT_SESSION_SSL,
             ) as response:
+                if response.status != 200:
+                    # Return error object instead of None
+                    error_detail = f"HTTP Error: {response.status}"
+                    try:
+                        error_data = await response.json()
+                        if "error" in error_data:
+                            error_detail = f"External Error: {error_data.get('error', {}).get('message', error_data.get('error', 'Unknown error'))}"
+                        else:
+                            error_detail = f"HTTP {response.status}: {error_data}"
+                    except Exception:
+                        error_text = await response.text()
+                        error_detail = f"HTTP {response.status}: {error_text[:200]}"
+                    
+                    log.error(f"Request failed for {url}: {error_detail}")
+                    return {"error": error_detail, "status": response.status}
+                
                 return await response.json()
+    except aiohttp.ClientError as e:
+        # Handle connection/network errors
+        error_detail = f"Connection error: {str(e)}"
+        log.error(f"Connection error for {url}: {e}")
+        return {"error": error_detail, "status": None}
     except Exception as e:
-        # Handle connection error here
-        log.error(f"Connection error: {e}")
-        return None
+        # Handle other errors
+        error_detail = f"Unexpected error: {str(e)}"
+        log.error(f"Unexpected error for {url}: {e}")
+        return {"error": error_detail, "status": None}
 
 
 async def cleanup_response(
@@ -361,12 +396,14 @@ async def get_all_models_responses(request: Request, user: UserModel) -> list:
 
     request_tasks = []
     for idx, url in enumerate(request.app.state.config.OPENAI_API_BASE_URLS):
+        backend_url = translate_localhost_to_docker_service(url)
+        
         if (str(idx) not in request.app.state.config.OPENAI_API_CONFIGS) and (
             url not in request.app.state.config.OPENAI_API_CONFIGS  # Legacy support
         ):
             request_tasks.append(
                 send_get_request(
-                    f"{url}/models",
+                    f"{backend_url}/models",
                     request.app.state.config.OPENAI_API_KEYS[idx],
                     user=user,
                 )
@@ -386,7 +423,7 @@ async def get_all_models_responses(request: Request, user: UserModel) -> list:
                 if len(model_ids) == 0:
                     request_tasks.append(
                         send_get_request(
-                            f"{url}/models",
+                            f"{backend_url}/models",
                             request.app.state.config.OPENAI_API_KEYS[idx],
                             user=user,
                         )
@@ -415,6 +452,10 @@ async def get_all_models_responses(request: Request, user: UserModel) -> list:
     responses = await asyncio.gather(*request_tasks)
 
     for idx, response in enumerate(responses):
+        # Skip error responses - they should be preserved as-is
+        if response and "error" in response:
+            continue
+            
         if response:
             url = request.app.state.config.OPENAI_API_BASE_URLS[idx]
             api_config = request.app.state.config.OPENAI_API_CONFIGS.get(
@@ -479,6 +520,21 @@ async def get_all_models(request: Request, user: UserModel) -> dict[str, list]:
         return {"data": []}
 
     responses = await get_all_models_responses(request, user=user)
+
+    # Check if all responses are errors
+    error_responses = [r for r in responses if r and "error" in r]
+    successful_responses = [r for r in responses if r and "error" not in r]
+    
+    if len(error_responses) > 0 and len(successful_responses) == 0:
+        # All requests failed, raise an error
+        error_messages = [r.get("error", "Unknown error") for r in error_responses]
+        error_detail = f"Failed to load models from all configured endpoints: {'; '.join(error_messages)}"
+        log.error(error_detail)
+        raise HTTPException(status_code=500, detail=error_detail)
+    elif len(error_responses) > 0:
+        # Some requests failed, log warnings but continue
+        error_messages = [r.get("error", "Unknown error") for r in error_responses]
+        log.warning(f"Some model endpoints failed to load: {'; '.join(error_messages)}")
 
     def extract_data(response):
         if response and "data" in response:
@@ -551,6 +607,7 @@ async def get_models(
         models = await get_all_models(request, user=user)
     else:
         url = request.app.state.config.OPENAI_API_BASE_URLS[url_idx]
+        url = translate_localhost_to_docker_service(url)
         key = request.app.state.config.OPENAI_API_KEYS[url_idx]
 
         api_config = request.app.state.config.OPENAI_API_CONFIGS.get(
@@ -641,6 +698,7 @@ async def verify_connection(
     user=Depends(get_admin_user),
 ):
     url = form_data.url
+    url = translate_localhost_to_docker_service(url)
     key = form_data.key
 
     api_config = form_data.config or {}
@@ -876,6 +934,7 @@ async def generate_chat_completion(
         }
 
     url = request.app.state.config.OPENAI_API_BASE_URLS[idx]
+    url = translate_localhost_to_docker_service(url)
     key = request.app.state.config.OPENAI_API_KEYS[idx]
 
     # Check if model is a reasoning model that needs special handling
@@ -995,6 +1054,7 @@ async def embeddings(request: Request, form_data: dict, user):
         idx = models[model_id]["urlIdx"]
 
     url = request.app.state.config.OPENAI_API_BASE_URLS[idx]
+    url = translate_localhost_to_docker_service(url)
     key = request.app.state.config.OPENAI_API_KEYS[idx]
     api_config = request.app.state.config.OPENAI_API_CONFIGS.get(
         str(idx),
@@ -1064,6 +1124,7 @@ async def proxy(path: str, request: Request, user=Depends(get_verified_user)):
 
     idx = 0
     url = request.app.state.config.OPENAI_API_BASE_URLS[idx]
+    url = translate_localhost_to_docker_service(url)
     key = request.app.state.config.OPENAI_API_KEYS[idx]
     api_config = request.app.state.config.OPENAI_API_CONFIGS.get(
         str(idx),

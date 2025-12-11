@@ -29,12 +29,24 @@ export const getModels = async (
 		}
 	)
 		.then(async (res) => {
-			if (!res.ok) throw await res.json();
+			if (!res.ok) {
+				const errorData = await res.json();
+				throw errorData;
+			}
 			return res.json();
 		})
 		.catch((err) => {
-			error = err;
-			console.error(err);
+			// Handle FastAPI error format (detail field) or other error formats
+			if (err?.detail) {
+				error = err.detail;
+			} else if (err?.error?.message) {
+				error = err.error.message;
+			} else if (typeof err === 'string') {
+				error = err;
+			} else {
+				error = err?.message || 'Failed to load models';
+			}
+			console.error('Error loading models:', error, err);
 			return null;
 		});
 
