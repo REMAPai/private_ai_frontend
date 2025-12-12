@@ -19,7 +19,7 @@
 		"i18n:parse": "i18next --config i18next-parser.config.ts && prettier --write \"src/lib/i18n/**/*.{js,json}\"",
 		"cy:open": "cypress open",
 		"test:frontend": "vitest --passWithNoTests",
-		"pyodide:fetch": "node scripts/prepare-pyodide.js"
+		"pyodide:fetch": "test -f scripts/prepare-pyodide.js && node scripts/prepare-pyodide.js || echo 'Skipping pyodide:fetch - script not found'"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-auto": "3.2.2",
