@@ -48,7 +48,7 @@ langchain==0.3.27
 langchain-community==0.3.29
 
 fake-useragent==2.2.0
-chromadb==1.1.0
+chromadb
 weaviate-client==4.17.0
 opensearch-py==2.8.0
 
@@ -81,7 +81,6 @@ soundfile==0.13.1
 
 pillow==11.3.0
 opencv-python-headless==4.11.0.86
-rapidocr-onnxruntime==1.4.4
 rank-bm25==0.2.2
 
 onnxruntime==1.20.1
@@ -126,6 +125,8 @@ av==14.0.1 # Caution: Set due to FATAL FIPS SELFTEST FAILURE, see discussion htt
 
 colbert-ai==0.2.21
 
+## Token Tracking
+git+https://github.com/sarang-remapai/openwebui-token-tracking.git
 
 ## Tests
 docker~=7.1.0
