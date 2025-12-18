@@ -194,7 +194,7 @@ elif page == "Token Tracking Operations":
         st.stop()
     
     # Tab for different operations
-    tab1, tab2, tab3 = st.tabs(["Credit Groups (Plans)", "User Management", "Migrations"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Credit Groups (Plans)", "User Management", "Usage & Logs", "Migrations"])
     
     with tab1:
         st.subheader("Credit Groups (Plans) Management")
@@ -234,6 +234,19 @@ elif page == "Token Tracking Operations":
                         st.code(stdout + stderr)
                 else:
                     st.error("Plan name is required")
+        
+        st.divider()
+        
+        # View credit group user assignments
+        st.write("### Credit Group User Assignments")
+        try:
+            credit_group_users_df = get_table_data(conn, "token_tracking_credit_group_user", limit=1000)
+            if credit_group_users_df is not None and not credit_group_users_df.empty:
+                st.dataframe(credit_group_users_df, use_container_width=True)
+            else:
+                st.info("No user assignments found")
+        except Exception as e:
+            st.warning(f"Could not load credit group user assignments: {e}")
         
         st.divider()
         
@@ -296,6 +309,33 @@ elif page == "Token Tracking Operations":
             st.warning(f"Could not load users: {e}")
     
     with tab3:
+        st.subheader("Usage Logs & Tracking")
+        
+        # View usage logs
+        st.write("### Token Usage Logs")
+        try:
+            usage_logs_df = get_table_data(conn, "token_tracking_usage_log", limit=1000)
+            if usage_logs_df is not None and not usage_logs_df.empty:
+                st.dataframe(usage_logs_df, use_container_width=True)
+            else:
+                st.info("No usage logs found")
+        except Exception as e:
+            st.warning(f"Could not load usage logs: {e}")
+        
+        st.divider()
+        
+        # View sponsored allowances
+        st.write("### Sponsored Allowances")
+        try:
+            sponsored_df = get_table_data(conn, "token_tracking_sponsored_allowance", limit=1000)
+            if sponsored_df is not None and not sponsored_df.empty:
+                st.dataframe(sponsored_df, use_container_width=True)
+            else:
+                st.info("No sponsored allowances found")
+        except Exception as e:
+            st.warning(f"Could not load sponsored allowances: {e}")
+    
+    with tab4:
         st.subheader("Database Migrations")
         
         st.write("### Run Initial Migration")
