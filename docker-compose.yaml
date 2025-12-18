@@ -27,6 +27,26 @@ services:
       - host.docker.internal:host-gateway
     restart: unless-stopped
 
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: token-tracking-streamlit
+    volumes:
+      - open-webui:/app/backend/data
+      - ./backend:/app/backend:ro
+      - ./streamlit_app.py:/app/streamlit_app.py:ro
+    ports:
+      - ${STREAMLIT_PORT-8501}:8501
+    environment:
+      - DATABASE_URL=sqlite:///app/backend/data/webui.db
+    command: >
+      sh -c "pip install -q streamlit pandas sqlalchemy &&
+             streamlit run /app/streamlit_app.py --server.port=8501 --server.address=0.0.0.0"
+    depends_on:
+      - open-webui
+    restart: unless-stopped
+
 volumes:
   #ollama: {}
   open-webui: {}
