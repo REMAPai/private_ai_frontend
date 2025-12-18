@@ -187,5 +187,7 @@ USER $UID:$GID
 ARG BUILD_HASH
 ENV WEBUI_BUILD_VERSION=${BUILD_HASH}
 ENV DOCKER=true
+# Install Streamlit and dependencies
+RUN pip install -q streamlit pandas sqlalchemy requests
 
 CMD [ "bash", "start.sh"]

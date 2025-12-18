@@ -12,41 +12,38 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-#    image: ghcr.io/open-webui/open-webui:${WEBUI_DOCKER_TAG-main}
     container_name: open-webui
     volumes:
       - open-webui:/app/backend/data
-#    depends_on:
-#      - ollama
+      # Mount your streamlit app into the container
+      - ./streamlit_app.py:/app/streamlit_app.py:ro 
     ports:
       - ${OPEN_WEBUI_PORT-7042}:8080
+      - ${STREAMLIT_PORT-8501}:8501
     environment:
-#      - 'OLLAMA_BASE_URL=http://ollama:11434'
       - 'WEBUI_SECRET_KEY='
-      - 'DATABASE_URL=sqlite:///app/backend/data/webui.db'
+      # Both apps now share this exact path locally within the container
+      - 'DATABASE_URL=sqlite:////app/backend/data/webui.db'
     extra_hosts:
       - host.docker.internal:host-gateway
     restart: unless-stopped
-
-  streamlit:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: token-tracking-streamlit
-    volumes:
-      - open-webui:/app/backend/data
-      - ./backend:/app/backend
-      - ./streamlit_app.py:/app/streamlit_app.py:ro
-    ports:
-      - ${STREAMLIT_PORT-8501}:8501
-    environment:
-      - DATABASE_URL=sqlite:///app/backend/data/webui.db
+    # This command runs Open WebUI in the background (&) and Streamlit in the foreground
+    # Wait for Open WebUI to be ready before starting Streamlit
     command: >
-      sh -c "pip install -q streamlit pandas sqlalchemy &&
-             streamlit run /app/streamlit_app.py --server.port=8501 --server.address=0.0.0.0"
-    depends_on:
-      - open-webui
-    restart: unless-stopped
+      bash -c "echo 'Starting Open WebUI...' &&
+      (bash /app/backend/start.sh &) &&
+      echo 'Waiting for Open WebUI to be ready...' &&
+      for i in {1..60}; do
+        if curl -sf http://localhost:8080/health > /dev/null 2>&1; then
+          echo 'Open WebUI is ready!' &&
+          break
+        fi
+        echo 'Waiting for Open WebUI...' &&
+        sleep 2
+      done &&
+      echo 'Starting Streamlit...' &&
+      streamlit run /app/streamlit_app.py --server.port=8501 --server.address=0.0.0.0"
+
 
 volumes:
   #ollama: {}
