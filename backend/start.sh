@@ -69,6 +69,12 @@ if [ -n "$SPACE_ID" ]; then
   export WEBUI_URL=${SPACE_HOST}
 fi
 
+# Initialize token tracking database migrations
+if [ -f "$SCRIPT_DIR/init-token-tracking.sh" ]; then
+    echo "Running token tracking initialization..."
+    bash "$SCRIPT_DIR/init-token-tracking.sh"
+fi
+
 PYTHON_CMD=$(command -v python3 || command -v python)
 UVICORN_WORKERS="${UVICORN_WORKERS:-1}"
 
