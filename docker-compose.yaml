@@ -35,7 +35,7 @@ services:
     container_name: token-tracking-streamlit
     volumes:
       - open-webui:/app/backend/data
-      - ./backend:/app/backend:ro
+      - ./backend:/app/backend
       - ./streamlit_app.py:/app/streamlit_app.py:ro
     ports:
       - ${STREAMLIT_PORT-8501}:8501
