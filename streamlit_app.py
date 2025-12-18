@@ -9,7 +9,6 @@ from pathlib import Path
 # Page configuration
 st.set_page_config(
     page_title="Token Tracking Database Manager",
-    page_icon="🔐",
     layout="wide"
 )
 
@@ -19,11 +18,7 @@ def get_database_path():
     if os.getenv("DATABASE_URL"):
         db_url = os.getenv("DATABASE_URL")
         if db_url.startswith("sqlite:///"):
-            # SQLite URL format: sqlite:///path or sqlite:////absolute/path
-            # Remove the protocol prefix (sqlite:///)
             path = db_url[10:]  # len("sqlite:///") = 10
-            # If path doesn't start with /, add it for absolute path
-            # (SQLite URLs with 3 slashes can have absolute paths that need the / added back)
             if not path.startswith("/"):
                 path = "/" + path
             return path
@@ -55,25 +50,9 @@ def get_db_connection():
     """Create a connection to the database"""
     db_path = get_database_path()
     
-    # Debug info
-    st.sidebar.info(f"DB Path: {db_path}")
-    st.sidebar.info(f"DB Exists: {os.path.exists(db_path) if db_path else False}")
-    if os.getenv("DATABASE_URL"):
-        st.sidebar.info(f"DB URL: {os.getenv('DATABASE_URL')}")
-    
     if not os.path.exists(db_path):
         st.error(f"Database not found at: {db_path}")
         st.info("Make sure the database file exists and the path is correct.")
-        # Show available paths for debugging
-        debug_paths = [
-            "/app/backend/data/webui.db",
-            "/app/data/webui.db",
-            str(Path(__file__).parent / "backend" / "data" / "webui.db"),
-        ]
-        st.info("Checking these paths:")
-        for p in debug_paths:
-            exists = os.path.exists(p) if p else False
-            st.text(f"  {p}: {'✓' if exists else '✗'}")
         return None
     try:
         conn = sqlite3.connect(db_path)
@@ -88,24 +67,110 @@ def get_all_tables(conn):
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
     return [row[0] for row in cursor.fetchall()]
 
-def get_table_data(conn, table_name, limit=100):
+def get_table_data(conn, table_name, limit=100, where_clause=""):
     """Get data from a table"""
     try:
-        df = pd.read_sql_query(f"SELECT * FROM {table_name} LIMIT {limit}", conn)
+        query = f"SELECT * FROM {table_name}"
+        if where_clause:
+            query += f" WHERE {where_clause}"
+        query += f" LIMIT {limit}"
+        df = pd.read_sql_query(query, conn)
         return df
     except Exception as e:
         st.error(f"Error reading table {table_name}: {e}")
         return None
 
+def execute_query(conn, query, params=None):
+    """Execute a query and return results"""
+    try:
+        cursor = conn.cursor()
+        if params:
+            cursor.execute(query, params)
+        else:
+            cursor.execute(query)
+        conn.commit()
+        return cursor.rowcount
+    except Exception as e:
+        st.error(f"Error executing query: {e}")
+        conn.rollback()
+        return None
+
+def get_credit_groups(conn):
+    """Get all credit groups as a list of tuples (id, display_name)"""
+    try:
+        df = get_table_data(conn, "token_tracking_credit_group", limit=1000)
+        if df is not None and not df.empty:
+            result = []
+            for _, row in df.iterrows():
+                group_id = row['id']
+                group_name = row.get('name', 'Unknown')
+                max_credit = row.get('max_credit', '')
+                display_name = f"{group_name} (Limit: {max_credit})" if max_credit else group_name
+                result.append((group_id, display_name))
+            return result
+        return []
+    except Exception as e:
+        st.warning(f"Could not load credit groups: {e}")
+        return []
+
+def get_users(conn):
+    """Get all users as a list of tuples (id, email/name)"""
+    try:
+        df = get_table_data(conn, "user", limit=1000)
+        if df is not None and not df.empty:
+            result = []
+            for _, row in df.iterrows():
+                user_id = row['id']
+                email = row.get('email', '')
+                name = row.get('name', '')
+                display_name = f"{name} ({email})" if name and email else (email if email else name if name else user_id)
+                result.append((user_id, display_name))
+            return result
+        return []
+    except Exception as e:
+        st.warning(f"Could not load users: {e}")
+        return []
+
+def get_user_group_assignments(conn):
+    """Get all user-group assignments with user and group names"""
+    try:
+        # Get assignments
+        assignments_df = get_table_data(conn, "token_tracking_credit_group_user", limit=1000)
+        if assignments_df is None or assignments_df.empty:
+            return pd.DataFrame()
+        
+        # Get users
+        users_df = get_table_data(conn, "user", limit=1000)
+        # Get groups
+        groups_df = get_table_data(conn, "token_tracking_credit_group", limit=1000)
+        
+        if users_df is not None and groups_df is not None:
+            # Merge with users (user_id in assignments matches id in users)
+            result = assignments_df.merge(
+                users_df[['id', 'email', 'name']].rename(columns={'id': 'user_id'}),
+                on='user_id',
+                how='left'
+            )
+            # Merge with groups (credit_group_id in assignments matches id in groups)
+            result = result.merge(
+                groups_df[['id', 'name']].rename(columns={'id': 'credit_group_id', 'name': 'group_name'}),
+                on='credit_group_id',
+                how='left'
+            )
+            return result
+        
+        return assignments_df
+    except Exception as e:
+        st.warning(f"Could not load user-group assignments: {e}")
+        return pd.DataFrame()
+
 def run_token_tracking_command(command):
     """Run a token tracking CLI command"""
     try:
-        # Set database URL
         db_path = get_database_path()
         env = os.environ.copy()
         env['DATABASE_URL'] = f"sqlite:///{db_path}"
         
-        # Change to backend directory if it exists
         backend_dirs = [
             Path("/app/backend"),
             Path(__file__).parent / "backend",
@@ -130,19 +195,19 @@ def run_token_tracking_command(command):
         return "", str(e), 1
 
 # Main app
-st.title("🔐 Token Tracking Database Manager")
+st.title("Token Tracking Database Manager")
 
 # Sidebar navigation
 page = st.sidebar.selectbox(
     "Navigation",
-    ["Database Tables", "Token Tracking Operations", "Model Management"]
+    ["Database Tables", "Credit Groups", "User Assignments", "Model Management", "Migrations"]
 )
 
 # Initialize database connection
 conn = get_db_connection()
 
 if page == "Database Tables":
-    st.header("📊 Database Tables Viewer")
+    st.header("Database Tables Viewer")
     
     if conn:
         tables = get_all_tables(conn)
@@ -151,7 +216,7 @@ if page == "Database Tables":
             selected_table = st.selectbox("Select a table to view", tables)
             
             if selected_table:
-                st.subheader(f"Table: `{selected_table}`")
+                st.subheader(f"Table: {selected_table}")
                 
                 # Get table schema
                 cursor = conn.cursor()
@@ -171,7 +236,6 @@ if page == "Database Tables":
                     st.write(f"**Data ({len(df)} rows):**")
                     st.dataframe(df, use_container_width=True)
                     
-                    # Download button
                     csv = df.to_csv(index=False)
                     st.download_button(
                         label="Download as CSV",
@@ -186,196 +250,227 @@ if page == "Database Tables":
     else:
         st.error("Could not connect to database")
 
-elif page == "Token Tracking Operations":
-    st.header("🎯 Token Tracking Operations")
+elif page == "Credit Groups":
+    st.header("Credit Groups Management")
     
     if not conn:
         st.error("Could not connect to database")
         st.stop()
     
-    # Tab for different operations
-    tab1, tab2, tab3, tab4 = st.tabs(["Credit Groups (Plans)", "User Management", "Usage & Logs", "Migrations"])
+    # Get existing groups
+    groups_df = get_table_data(conn, "token_tracking_credit_group", limit=1000)
     
-    with tab1:
-        st.subheader("Credit Groups (Plans) Management")
-        
-        # View existing credit groups
-        st.write("### Existing Credit Groups")
-        try:
-            credit_groups_df = get_table_data(conn, "token_tracking_credit_group", limit=1000)
-            if credit_groups_df is not None and not credit_groups_df.empty:
-                st.dataframe(credit_groups_df, use_container_width=True)
-            else:
-                st.info("No credit groups found")
-        except Exception as e:
-            st.warning(f"Could not load credit groups: {e}")
-        
-        st.divider()
-        
-        # Create new credit group
-        st.write("### Create New Credit Group")
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.subheader("Existing Credit Groups")
+        if groups_df is not None and not groups_df.empty:
+            # Display groups with edit/delete options
+            for idx, row in groups_df.iterrows():
+                group_name = row.get('name', 'Unknown')
+                max_credit = row.get('max_credit', 'N/A')
+                group_id = row.get('id')
+                
+                with st.expander(f"{group_name} - Limit: {max_credit}"):
+                    col_a, col_b = st.columns([3, 1])
+                    with col_a:
+                        st.write(f"**Description:** {row.get('description', 'No description')}")
+                        st.write(f"**Max Credit:** {max_credit}")
+                        st.write(f"**ID:** {group_id}")
+                    
+                    with col_b:
+                        # Edit form
+                        with st.form(f"edit_group_{idx}"):
+                            current_limit = int(row.get('max_credit', 1000)) if isinstance(row.get('max_credit'), (int, float)) else 1000
+                            new_limit = st.number_input("Max Credit", value=current_limit, min_value=1, key=f"limit_{idx}")
+                            new_desc = st.text_area("Description", value=str(row.get('description', '')), key=f"desc_{idx}", height=80)
+                            submitted = st.form_submit_button("Update", use_container_width=True)
+                            if submitted:
+                                # Update group using correct column names
+                                update_query = "UPDATE token_tracking_credit_group SET max_credit = ?, description = ? WHERE id = ?"
+                                result = execute_query(conn, update_query, (new_limit, new_desc, group_id))
+                                
+                                if result is not None and result > 0:
+                                    st.success("Group updated successfully")
+                                    st.rerun()
+                                elif result == 0:
+                                    st.warning("No rows updated. Group may not exist.")
+                        
+                        # Delete button with cascade delete
+                        if st.button("Delete", key=f"delete_{idx}", type="secondary", use_container_width=True):
+                            # First, delete all user assignments for this group (cascade delete)
+                            delete_assignments_query = "DELETE FROM token_tracking_credit_group_user WHERE credit_group_id = ?"
+                            assignments_result = execute_query(conn, delete_assignments_query, (group_id,))
+                            
+                            # Then delete the group
+                            delete_query = "DELETE FROM token_tracking_credit_group WHERE id = ?"
+                            result = execute_query(conn, delete_query, (group_id,))
+                            
+                            if result is not None and result > 0:
+                                assignments_count = assignments_result if assignments_result is not None else 0
+                                if assignments_count > 0:
+                                    st.success(f"Group deleted successfully. Removed {assignments_count} user assignment(s).")
+                                else:
+                                    st.success("Group deleted successfully.")
+                                st.rerun()
+                            elif result == 0:
+                                st.warning("No rows deleted. Group may not exist.")
+            
+            st.dataframe(groups_df, use_container_width=True, hide_index=True)
+        else:
+            st.info("No credit groups found")
+    
+    with col2:
+        st.subheader("Create New Group")
         with st.form("create_credit_group"):
             plan_name = st.text_input("Plan Name", placeholder="e.g., Starter Plan")
-            token_limit = st.number_input("Token Limit", min_value=1, value=1000, step=100)
-            description = st.text_area("Description", placeholder="Plan description")
+            max_credit = st.number_input("Max Credit", min_value=1, value=1000, step=100)
+            description = st.text_area("Description", placeholder="Plan description", height=100)
             
-            submitted = st.form_submit_button("Create Credit Group")
+            submitted = st.form_submit_button("Create Group", use_container_width=True)
             if submitted:
                 if plan_name:
-                    command = f'owui-token-tracking credit-group create "{plan_name}" {token_limit} "{description}"'
+                    command = f'owui-token-tracking credit-group create "{plan_name}" {max_credit} "{description}"'
                     stdout, stderr, returncode = run_token_tracking_command(command)
                     
                     if returncode == 0:
                         st.success(f"Successfully created credit group: {plan_name}")
-                        st.code(stdout)
                         st.rerun()
                     else:
                         st.error(f"Error creating credit group: {stderr}")
                         st.code(stdout + stderr)
                 else:
                     st.error("Plan name is required")
-        
-        st.divider()
-        
-        # View credit group user assignments
-        st.write("### Credit Group User Assignments")
-        try:
-            credit_group_users_df = get_table_data(conn, "token_tracking_credit_group_user", limit=1000)
-            if credit_group_users_df is not None and not credit_group_users_df.empty:
-                st.dataframe(credit_group_users_df, use_container_width=True)
-            else:
-                st.info("No user assignments found")
-        except Exception as e:
-            st.warning(f"Could not load credit group user assignments: {e}")
-        
-        st.divider()
-        
-        # Add user to credit group
-        st.write("### Add User to Credit Group")
-        with st.form("add_user_to_group"):
-            user_id = st.text_input("User ID", placeholder="e.g., 39eb28ea-73a2-437a-bc7e-4e0a90529105")
-            group_name = st.text_input("Credit Group Name", placeholder="e.g., Starter Plan")
-            
-            submitted = st.form_submit_button("Add User to Group")
-            if submitted:
-                if user_id and group_name:
-                    command = f'owui-token-tracking credit-group add-user {user_id} "{group_name}"'
-                    stdout, stderr, returncode = run_token_tracking_command(command)
-                    
-                    if returncode == 0:
-                        st.success(f"Successfully added user {user_id} to {group_name}")
-                        st.code(stdout)
-                        st.rerun()
-                    else:
-                        st.error(f"Error adding user to group: {stderr}")
-                        st.code(stdout + stderr)
-                else:
-                    st.error("User ID and Group Name are required")
-    
-    with tab2:
-        st.subheader("User Management")
-        
-        # Find user by email
-        st.write("### Find User by Email")
-        with st.form("find_user"):
-            email = st.text_input("Email Address", placeholder="user@example.com")
-            
-            submitted = st.form_submit_button("Find User")
-            if submitted:
-                if email:
-                    command = f'owui-token-tracking user find --email "{email}"'
-                    stdout, stderr, returncode = run_token_tracking_command(command)
-                    
-                    if returncode == 0:
-                        st.success("User found!")
-                        st.code(stdout)
-                    else:
-                        st.error(f"Error finding user: {stderr}")
-                        st.code(stdout + stderr)
-                else:
-                    st.error("Email is required")
-        
-        st.divider()
-        
-        # View users table
-        st.write("### Users Table")
-        try:
-            users_df = get_table_data(conn, "user", limit=1000)
-            if users_df is not None and not users_df.empty:
-                st.dataframe(users_df, use_container_width=True)
-            else:
-                st.info("No users found")
-        except Exception as e:
-            st.warning(f"Could not load users: {e}")
-    
-    with tab3:
-        st.subheader("Usage Logs & Tracking")
-        
-        # View usage logs
-        st.write("### Token Usage Logs")
-        try:
-            usage_logs_df = get_table_data(conn, "token_tracking_usage_log", limit=1000)
-            if usage_logs_df is not None and not usage_logs_df.empty:
-                st.dataframe(usage_logs_df, use_container_width=True)
-            else:
-                st.info("No usage logs found")
-        except Exception as e:
-            st.warning(f"Could not load usage logs: {e}")
-        
-        st.divider()
-        
-        # View sponsored allowances
-        st.write("### Sponsored Allowances")
-        try:
-            sponsored_df = get_table_data(conn, "token_tracking_sponsored_allowance", limit=1000)
-            if sponsored_df is not None and not sponsored_df.empty:
-                st.dataframe(sponsored_df, use_container_width=True)
-            else:
-                st.info("No sponsored allowances found")
-        except Exception as e:
-            st.warning(f"Could not load sponsored allowances: {e}")
-    
-    with tab4:
-        st.subheader("Database Migrations")
-        
-        st.write("### Run Initial Migration")
-        st.info("This will create the token tracking tables if they don't exist. Safe to run multiple times.")
-        if st.button("Run Initial Migration"):
-            command = "owui-token-tracking init"
-            stdout, stderr, returncode = run_token_tracking_command(command)
-            
-            if returncode == 0:
-                st.success("Migration completed successfully!")
-                st.code(stdout)
-            else:
-                st.warning(f"Migration output: {stderr}")
-                st.code(stdout + stderr)
 
-elif page == "Model Management":
-    st.header("🤖 Model Management")
+elif page == "User Assignments":
+    st.header("User-Group Assignments")
     
     if not conn:
         st.error("Could not connect to database")
         st.stop()
     
-    # View existing models
-    st.write("### Existing Models")
-    try:
-        models_df = get_table_data(conn, "token_tracking_model_pricing", limit=1000)
-        if models_df is not None and not models_df.empty:
-            st.dataframe(models_df, use_container_width=True)
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.subheader("Current Assignments")
+        assignments_df = get_user_group_assignments(conn)
+        
+        if assignments_df is not None and not assignments_df.empty:
+            # Display assignments with delete option
+            # Note: token_tracking_credit_group_user has no id column, only user_id and credit_group_id
+            for idx, row in assignments_df.iterrows():
+                user_display = row.get('email', row.get('name', row.get('user_id', 'Unknown')))
+                group_display = row.get('group_name', row.get('credit_group_id', 'Unknown'))
+                user_id = row.get('user_id')
+                credit_group_id = row.get('credit_group_id')
+                
+                with st.expander(f"User: {user_display} → Group: {group_display}"):
+                    col_a, col_b = st.columns([3, 1])
+                    with col_a:
+                        # Show relevant columns
+                        display_data = {}
+                        if 'email' in row:
+                            display_data['User Email'] = row['email']
+                        if 'name' in row:
+                            display_data['User Name'] = row['name']
+                        if 'user_id' in row:
+                            display_data['User ID'] = row['user_id']
+                        if 'group_name' in row:
+                            display_data['Group Name'] = row['group_name']
+                        if 'credit_group_id' in row:
+                            display_data['Group ID'] = row['credit_group_id']
+                        
+                        if display_data:
+                            st.json(display_data)
+                        else:
+                            st.dataframe(pd.DataFrame([row]), use_container_width=True, hide_index=True)
+                    
+                    with col_b:
+                        # Delete assignment using user_id and credit_group_id (no id column in this table)
+                        if user_id and credit_group_id:
+                            if st.button("Remove", key=f"remove_{idx}", type="secondary", use_container_width=True):
+                                delete_query = "DELETE FROM token_tracking_credit_group_user WHERE user_id = ? AND credit_group_id = ?"
+                                result = execute_query(conn, delete_query, (user_id, credit_group_id))
+                                if result is not None and result > 0:
+                                    st.success("Assignment removed successfully")
+                                    st.rerun()
+                                elif result == 0:
+                                    st.warning("No rows deleted.")
+            
+            # Show full table
+            st.dataframe(assignments_df, use_container_width=True, hide_index=True)
         else:
-            st.info("No models found")
-    except Exception as e:
-        st.warning(f"Could not load models: {e}")
+            st.info("No user-group assignments found")
     
-    st.divider()
+    with col2:
+        st.subheader("Add User to Group")
+        with st.form("add_user_to_group"):
+            # Get users and groups for dropdowns
+            users = get_users(conn)
+            groups = get_credit_groups(conn)
+            
+            if not users:
+                st.warning("No users found in database")
+            if not groups:
+                st.warning("No credit groups found. Create a group first.")
+            
+            if users and groups:
+                # Create dropdowns
+                user_options = {display: user_id for user_id, display in users}
+                group_options = {display: group_id for group_id, display in groups}
+                
+                # Get group names for lookup
+                group_name_map = {}
+                groups_df = get_table_data(conn, "token_tracking_credit_group", limit=1000)
+                if groups_df is not None and not groups_df.empty:
+                    for _, row in groups_df.iterrows():
+                        group_id = row.get('id')
+                        group_name = row.get('name', '')
+                        for display, gid in group_options.items():
+                            if gid == group_id:
+                                group_name_map[display] = group_name
+                                break
+                
+                selected_user_display = st.selectbox("Select User", options=list(user_options.keys()), index=0 if user_options else None)
+                selected_group_display = st.selectbox("Select Credit Group", options=list(group_options.keys()), index=0 if group_options else None)
+                
+                submitted = st.form_submit_button("Assign User to Group", use_container_width=True)
+                if submitted:
+                    selected_user_id = user_options[selected_user_display]
+                    selected_group_id = group_options[selected_group_display]
+                    
+                    # Get group name for command - extract from display or use mapping
+                    group_name = group_name_map.get(selected_group_display, '')
+                    if not group_name:
+                        # Fallback: extract from display name
+                        group_name = selected_group_display.split('(')[0].strip() if '(' in selected_group_display else selected_group_display
+                    
+                    if group_name:
+                        command = f'owui-token-tracking credit-group add-user {selected_user_id} "{group_name}"'
+                        stdout, stderr, returncode = run_token_tracking_command(command)
+                        
+                        if returncode == 0:
+                            st.success("Successfully assigned user to group")
+                            st.rerun()
+                        else:
+                            st.error(f"Error assigning user to group: {stderr}")
+                            if stdout:
+                                st.code(stdout)
+                            if stderr:
+                                st.code(stderr)
+                    else:
+                        st.error("Could not determine group name")
+            else:
+                st.info("Please ensure users and groups exist before creating assignments.")
+
+elif page == "Model Management":
+    st.header("Model Management")
     
-    # Model migration from token_parity.json
-    st.write("### Update Models from token_parity.json")
-    st.info("This will update the database with models from token_parity.json. Run this after adding new models to the JSON file.")
+    if not conn:
+        st.error("Could not connect to database")
+        st.stop()
     
-    # Check if token_parity.json exists
+    # Find token_parity.json file
     backend_dirs = [
         Path("/app/backend"),
         Path(__file__).parent / "backend",
@@ -387,30 +482,163 @@ elif page == "Model Management":
             token_parity_path = potential_path
             break
     
-    if token_parity_path.exists():
-        st.success(f"Found token_parity.json at: {token_parity_path}")
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.subheader("Existing Models")
+        models_df = get_table_data(conn, "token_tracking_model_pricing", limit=1000)
+        if models_df is not None and not models_df.empty:
+            st.dataframe(models_df, use_container_width=True, hide_index=True)
+        else:
+            st.info("No models found")
         
-        # Display current token_parity.json content
-        with open(token_parity_path, 'r') as f:
-            token_parity = json.load(f)
+        st.divider()
         
-        st.write("**Current token_parity.json content:**")
-        st.json(token_parity)
-        
-        if st.button("Run Model Migration"):
-            command = f"owui-token-tracking init --model-json token-tracking/token_parity.json"
-            stdout, stderr, returncode = run_token_tracking_command(command)
+        # JSON Editor Section
+        st.subheader("Edit token_parity.json")
+        if token_parity_path and token_parity_path.exists():
+            st.info(f"Editing: {token_parity_path}")
             
-            if returncode == 0:
-                st.success("Model migration completed successfully!")
-                st.code(stdout)
-                st.rerun()
-            else:
-                st.warning(f"Migration output: {stderr}")
-                st.code(stdout + stderr)
-    else:
-        st.warning(f"token_parity.json not found at: {token_parity_path}")
-        st.info("The token_parity.json file should be located at: backend/token-tracking/token_parity.json")
+            # Read current content
+            try:
+                with open(token_parity_path, 'r') as f:
+                    current_content = f.read()
+                    token_parity_data = json.loads(current_content)
+            except Exception as e:
+                st.error(f"Error reading file: {e}")
+                current_content = "[]"
+                token_parity_data = []
+            
+            # Editor
+            edited_content = st.text_area(
+                "JSON Content",
+                value=json.dumps(token_parity_data, indent=2),
+                height=400,
+                key="json_editor"
+            )
+            
+            col_save, col_validate = st.columns(2)
+            
+            with col_validate:
+                if st.button("Validate JSON", use_container_width=True):
+                    try:
+                        json.loads(edited_content)
+                        st.success("JSON is valid")
+                    except json.JSONDecodeError as e:
+                        st.error(f"Invalid JSON: {e}")
+            
+            with col_save:
+                if st.button("Save Changes", use_container_width=True, type="primary"):
+                    try:
+                        # Validate JSON before saving
+                        parsed_json = json.loads(edited_content)
+                        
+                        # Validate structure
+                        if not isinstance(parsed_json, list):
+                            st.error("JSON must be an array of model objects")
+                        else:
+                            # Check each model has required fields
+                            required_fields = ['provider', 'id', 'name', 'input_cost_credits', 'per_input_tokens', 'output_cost_credits', 'per_output_tokens']
+                            valid = True
+                            for i, model in enumerate(parsed_json):
+                                if not isinstance(model, dict):
+                                    st.error(f"Model at index {i} must be an object")
+                                    valid = False
+                                    break
+                                for field in required_fields:
+                                    if field not in model:
+                                        st.error(f"Model at index {i} missing required field: {field}")
+                                        valid = False
+                                        break
+                                if not valid:
+                                    break
+                            
+                            if valid:
+                                # Write to file
+                                # Check if file is writable (in Docker, it might be read-only)
+                                try:
+                                    with open(token_parity_path, 'w') as f:
+                                        f.write(edited_content)
+                                    st.success("File saved successfully!")
+                                    st.rerun()
+                                except PermissionError:
+                                    st.error("Permission denied. File may be read-only in Docker. Check volume mount permissions.")
+                                except Exception as e:
+                                    st.error(f"Error saving file: {e}")
+                    except json.JSONDecodeError as e:
+                        st.error(f"Invalid JSON: {e}")
+        else:
+            st.warning("token_parity.json not found")
+            st.info("Expected location: backend/token-tracking/token_parity.json")
+            
+            # Allow creating new file
+            st.subheader("Create New token_parity.json")
+            new_json_content = st.text_area(
+                "JSON Content",
+                value=json.dumps([{
+                    "provider": "openai",
+                    "id": "gpt-4.1-mini",
+                    "name": "GPT-4.1 Mini",
+                    "input_cost_credits": 1,
+                    "per_input_tokens": 1,
+                    "output_cost_credits": 1,
+                    "per_output_tokens": 1
+                }], indent=2),
+                height=300,
+                key="new_json_editor"
+            )
+            
+            if st.button("Create File", use_container_width=True):
+                try:
+                    parsed_json = json.loads(new_json_content)
+                    # Try to create the directory if it doesn't exist
+                    if token_parity_path:
+                        token_parity_path.parent.mkdir(parents=True, exist_ok=True)
+                        with open(token_parity_path, 'w') as f:
+                            f.write(new_json_content)
+                        st.success("File created successfully!")
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Error creating file: {e}")
+    
+    with col2:
+        st.subheader("Update Models")
+        st.info("After editing token_parity.json, run migration to update the database.")
+        
+        if token_parity_path and token_parity_path.exists():
+            if st.button("Run Model Migration", use_container_width=True):
+                command = f"owui-token-tracking init --model-json token-tracking/token_parity.json"
+                stdout, stderr, returncode = run_token_tracking_command(command)
+                
+                if returncode == 0:
+                    st.success("Model migration completed successfully!")
+                    st.rerun()
+                else:
+                    st.warning(f"Migration output: {stderr}")
+                    st.code(stdout + stderr)
+        else:
+            st.info("token_parity.json must exist to run migration")
+
+elif page == "Migrations":
+    st.header("Database Migrations")
+    
+    if not conn:
+        st.error("Could not connect to database")
+        st.stop()
+    
+    st.subheader("Initial Migration")
+    st.info("This will create the token tracking tables if they don't exist. Safe to run multiple times.")
+    
+    if st.button("Run Initial Migration", use_container_width=True):
+        command = "owui-token-tracking init"
+        stdout, stderr, returncode = run_token_tracking_command(command)
+        
+        if returncode == 0:
+            st.success("Migration completed successfully!")
+            st.code(stdout)
+        else:
+            st.warning(f"Migration output: {stderr}")
+            st.code(stdout + stderr)
 
 # Close connection
 if conn:
