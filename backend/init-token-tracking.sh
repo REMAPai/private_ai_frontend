@@ -16,8 +16,15 @@ if ! command -v owui-token-tracking &> /dev/null; then
     exit 0
 fi
 
-# Set database URL
-export DATABASE_URL="${DATABASE_URL:-sqlite:///$(pwd)/data/webui.db}"
+# Set database URL - use environment variable if set, otherwise default to standard location
+if [ -z "${DATABASE_URL:-}" ]; then
+    # Default to the standard OpenWebUI database location
+    export DATABASE_URL="sqlite:///app/backend/data/webui.db"
+    # If /app doesn't exist (not in Docker), use current directory
+    if [ ! -d "/app" ]; then
+        export DATABASE_URL="sqlite:///$(pwd)/data/webui.db"
+    fi
+fi
 
 echo "Initializing token tracking database..."
 echo "Database URL: $DATABASE_URL"
