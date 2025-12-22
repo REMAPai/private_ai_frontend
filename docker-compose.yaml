@@ -24,6 +24,8 @@ services:
       - 'WEBUI_SECRET_KEY='
       # Both apps now share this exact path locally within the container
       - 'DATABASE_URL=sqlite:////app/backend/data/webui.db'
+      # Password for accessing Streamlit app
+      - 'STREAMLIT_PASSWORD=${STREAMLIT_PASSWORD:-admin123}'
     extra_hosts:
       - host.docker.internal:host-gateway
     restart: unless-stopped
