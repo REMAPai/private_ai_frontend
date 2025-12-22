@@ -295,6 +295,43 @@ def run_token_tracking_command(command):
     except Exception as e:
         return "", str(e), 1
 
+def check_password():
+    """Returns True if the user had the correct password."""
+    
+    # Get password from environment variable
+    correct_password = os.getenv('STREAMLIT_PASSWORD', 'admin123')
+    
+    # Initialize session state
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
+    
+    # If already authenticated, return True
+    if st.session_state.authenticated:
+        return True
+    
+    # Show login form
+    st.markdown("## 🔐 Authentication Required")
+    st.markdown("Please enter the password to access the Token Tracking Database Manager")
+    
+    with st.form("login_form"):
+        password = st.text_input("Password", type="password", placeholder="Enter password")
+        submitted = st.form_submit_button("Login", use_container_width=True)
+        
+        if submitted:
+            if password == correct_password:
+                st.session_state.authenticated = True
+                st.success("Authentication successful!")
+                st.rerun()
+            else:
+                st.error("❌ Incorrect password. Please try again.")
+                return False
+    
+    return False
+
+# Check authentication before showing main app
+if not check_password():
+    st.stop()
+
 # Main app
 st.title("Token Tracking Database Manager")
 
