@@ -38,7 +38,7 @@
 	import ChatPlus from '../icons/ChatPlus.svelte';
 	import ChatCheck from '../icons/ChatCheck.svelte';
 	import Knobs from '../icons/Knobs.svelte';
-    import Bug from '../icons/Bug.svelte';
+	import Bug from '../icons/Bug.svelte';
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
 	import Modal from '../common/Modal.svelte';
 	import XMark from '../icons/XMark.svelte';
