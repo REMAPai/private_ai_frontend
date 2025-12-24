@@ -1,11 +1,11 @@
 [
-    {
-        "provider": "openai",
-        "id": "gpt-4.1-mini",
-        "name": "GPT-4.1 Mini",
-        "input_cost_credits": 1,
-        "per_input_tokens": 1,
-        "output_cost_credits": 1,
-        "per_output_tokens": 1
-    }
+	{
+		"provider": "openai",
+		"id": "gpt-4.1-mini",
+		"name": "GPT-4.1 Mini",
+		"input_cost_credits": 1,
+		"per_input_tokens": 1,
+		"output_cost_credits": 1,
+		"per_output_tokens": 1
+	}
 ]
