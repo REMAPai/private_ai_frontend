@@ -26,7 +26,6 @@
 	export let show = false;
 
 	export let title = 'Chats';
-	export let emptyPlaceholder = '';
 	export let shareUrl = false;
 
 	export let query = '';
@@ -39,13 +38,12 @@
 	export let chatListLoading = false;
 
 	let selectedChatId = null;
-	let selectedIdx = 0;
 	let showDeleteConfirmDialog = false;
 
 	export let onUpdate = () => {};
 
-	export let loadHandler: null | Function = null;
-	export let unarchiveHandler: null | Function = null;
+	export let loadHandler: null | (() => void) = null;
+	export let unarchiveHandler: null | ((chatId: string) => void) = null;
 
 	const setSortKey = (key) => {
 		if (orderBy === key) {
@@ -57,7 +55,7 @@
 	};
 
 	const deleteHandler = async (chatId) => {
-		const res = await deleteChatById(localStorage.token, chatId).catch((error) => {
+		await deleteChatById(localStorage.token, chatId).catch((error) => {
 			toast.error(`${error}`);
 		});
 
@@ -81,6 +79,7 @@
 			<div class=" text-lg font-medium self-center">{title}</div>
 			<button
 				class="self-center"
+				aria-label={$i18n.t('Close')}
 				on:click={() => {
 					show = false;
 				}}
@@ -261,6 +260,7 @@
 												<Tooltip content={$i18n.t('Unarchive Chat')}>
 													<button
 														class="self-center w-fit px-1 text-sm rounded-xl"
+														aria-label={$i18n.t('Unarchive Chat')}
 														on:click={async (e) => {
 															e.stopImmediatePropagation();
 															e.stopPropagation();
@@ -288,6 +288,7 @@
 											<Tooltip content={$i18n.t('Delete Chat')}>
 												<button
 													class="self-center w-fit px-1 text-sm rounded-xl"
+													aria-label={$i18n.t('Delete Chat')}
 													on:click={async (e) => {
 														e.stopImmediatePropagation();
 														e.stopPropagation();
@@ -318,7 +319,7 @@
 
 							{#if !allChatsLoaded && loadHandler}
 								<Loader
-									on:visible={(e) => {
+									on:visible={() => {
 										if (!chatListLoading) {
 											loadHandler();
 										}

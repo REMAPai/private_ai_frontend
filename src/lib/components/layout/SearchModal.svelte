@@ -77,7 +77,7 @@
 
 		const chatId = chatList[selectedChatIdx].id;
 
-		const chat = await getChatById(localStorage.token, chatId).catch(async (error) => {
+		const chat = await getChatById(localStorage.token, chatId).catch(async () => {
 			return null;
 		});
 
@@ -405,7 +405,7 @@
 
 					{#if !allChatsLoaded}
 						<Loader
-							on:visible={(e) => {
+							on:visible={() => {
 								if (!chatListLoading) {
 									loadMoreChats();
 								}
