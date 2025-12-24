@@ -401,11 +401,13 @@ export function listDragHandlePlugin(options = {}) {
 					const posInside = getPos();
 					const fromStart = posInside - 1;
 
-					try {
-						view.dispatch(
-							view.state.tr.setSelection(NodeSelection.create(view.state.doc, fromStart))
-						);
-					} catch {}
+				try {
+					view.dispatch(
+						view.state.tr.setSelection(NodeSelection.create(view.state.doc, fromStart))
+					);
+				} catch {
+					// Ignore selection errors
+				}
 
 					const startMouse = { x: event.clientX, y: event.clientY };
 					const ghostEl = ensureGhost(view, fromStart);

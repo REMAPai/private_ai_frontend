@@ -52,20 +52,22 @@
 					map.fitBounds(markerGroupLayer.getBounds(), {
 						maxZoom: Math.max(map.getZoom(), 13)
 					});
-				} catch (error) {}
+				} catch {
+					// Ignore bounds errors
+				}
 			}
 		};
 
 		setMarkers(points);
 
-		map.on('click', (e) => {
-			console.log(e.latlng);
-			onClick(`${e.latlng.lat}, ${e.latlng.lng}`);
+		map.on('click', (event) => {
+			console.log(event.latlng);
+			onClick(`${event.latlng.lat}, ${event.latlng.lng}`);
 
 			setMarkers([
 				{
-					coords: [e.latlng.lat, e.latlng.lng],
-					content: `Lat: ${e.latlng.lat}, Lng: ${e.latlng.lng}`
+					coords: [event.latlng.lat, event.latlng.lng],
+					content: `Lat: ${event.latlng.lat}, Lng: ${event.latlng.lng}`
 				}
 			]);
 		});
@@ -80,5 +82,5 @@
 </script>
 
 <div class=" z-10 w-full">
-	<div bind:this={mapElement} class="h-96 z-10" />
+	<div bind:this={mapElement} class="h-96 z-10"></div>
 </div>

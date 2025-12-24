@@ -3,7 +3,7 @@
 	import { marked } from 'marked';
 
 	import { getAdminDetails } from '$lib/apis/auths';
-	import { onMount, tick, getContext } from 'svelte';
+	import { onMount, getContext } from 'svelte';
 	import { config } from '$lib/stores';
 
 	const i18n = getContext('i18n');
@@ -41,6 +41,7 @@
 					style="white-space: pre-wrap;"
 				>
 					{#if ($config?.ui?.pending_user_overlay_content ?? '').trim() !== ''}
+						<!-- svelte-ignore svelte/no-at-html-tags -->
 						{@html marked.parse(
 							DOMPurify.sanitize(
 								($config?.ui?.pending_user_overlay_content ?? '').replace(/\n/g, '<br>')
