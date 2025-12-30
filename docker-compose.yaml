@@ -12,7 +12,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: open-webui
+#    image: ghcr.io/open-webui/open-webui:${WEBUI_DOCKER_TAG-main}
+    # container_name: open-webui
     volumes:
       - open-webui:/app/backend/data
       # Mount your streamlit app into the container
