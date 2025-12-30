@@ -1,0 +1,45 @@
+services:
+  open-webui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    # IMPORTANT (Dokploy): don't set container_name
+    # It breaks multi-instance and can cause issues with Dokploy logs/metrics.
+    # :contentReference[oaicite:1]{index=1}
+
+    volumes:
+      - open-webui-staging:/app/backend/data
+      - ./streamlit_app.py:/app/streamlit_app.py:ro
+
+    ports:
+      - ${OPEN_WEBUI_PORT-7043}:8080
+      - ${STREAMLIT_PORT-8502}:8501
+
+    environment:
+      - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY:-}
+      - DATABASE_URL=sqlite:////app/backend/data/webui.db
+      - STREAMLIT_PASSWORD=${STREAMLIT_PASSWORD:-admin123}
+
+    extra_hosts:
+      - host.docker.internal:host-gateway
+
+    restart: unless-stopped
+
+    command: >
+      bash -c "echo 'Starting Open WebUI...' &&
+      (bash /app/backend/start.sh &) &&
+      echo 'Waiting for Open WebUI to be ready...' &&
+      for i in {1..60}; do
+        if curl -sf http://localhost:8080/health > /dev/null 2>&1; then
+          echo 'Open WebUI is ready!' &&
+          break
+        fi
+        echo 'Waiting for Open WebUI...' &&
+        sleep 2
+      done &&
+      echo 'Starting Streamlit...' &&
+      streamlit run /app/streamlit_app.py --server.port=8501 --server.address=0.0.0.0"
+
+volumes:
+  open-webui-staging: {}
