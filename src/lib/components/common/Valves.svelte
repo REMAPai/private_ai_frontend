@@ -1,5 +1,5 @@
 <script>
-	import { onMount, getContext, createEventDispatcher } from 'svelte';
+	import { getContext, createEventDispatcher } from 'svelte';
 	const dispatch = createEventDispatcher();
 	const i18n = getContext('i18n');
 
@@ -11,7 +11,7 @@
 </script>
 
 {#if valvesSpec && Object.keys(valvesSpec?.properties ?? {}).length}
-	{#each Object.keys(valvesSpec.properties) as property, idx}
+	{#each Object.keys(valvesSpec.properties) as property}
 		<div class=" py-0.5 w-full justify-between">
 			<div class="flex w-full justify-between">
 				<div class=" self-center text-xs font-medium">

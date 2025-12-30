@@ -7,12 +7,11 @@
 	import panzoom, { type PanZoom } from 'panzoom';
 	import DOMPurify from 'dompurify';
 
-	import { onMount, getContext } from 'svelte';
+	import { getContext } from 'svelte';
 	const i18n = getContext('i18n');
 
 	import { copyToClipboard } from '$lib/utils';
 
-	import DocumentDuplicate from '../icons/DocumentDuplicate.svelte';
 	import Tooltip from './Tooltip.svelte';
 	import Clipboard from '../icons/Clipboard.svelte';
 	import Reset from '../icons/Reset.svelte';
@@ -49,6 +48,7 @@
 
 <div bind:this={sceneParentElement} class="relative {className}">
 	<div bind:this={sceneElement} class="flex h-full max-h-full justify-center items-center">
+		<!-- svelte-ignore svelte/no-at-html-tags -->
 		{@html DOMPurify.sanitize(svg, {
 			USE_PROFILES: { svg: true, svgFilters: true }, // allow <svg>, <defs>, <filter>, etc.
 			WHOLE_DOCUMENT: false,

@@ -40,7 +40,7 @@
 				<div class=" absolute top-0 left-0 right-0 bottom-0 z-10"></div>
 			{/if}
 
-			<FullHeightIframe src={$embed?.url} iframeClassName="w-full h-full" />
+			<FullHeightIframe src={$embed?.url} iframeClassName="w-full h-full" allowForms={true} />
 		</div>
 	</div>
 {/if}
