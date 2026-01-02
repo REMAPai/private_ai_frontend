@@ -369,6 +369,11 @@
 	onMount(async () => {
 		await showSidebar.set(!$mobile ? localStorage.sidebar === 'true' : false);
 
+		// Log user object for debugging
+		console.log('AppSidebar - User object:', $user);
+		console.log('AppSidebar - User role:', $user?.role);
+		console.log('AppSidebar - User full details:', JSON.stringify($user, null, 2));
+
 		unsubscribers = [
 			mobile.subscribe((value) => {
 				if ($showSidebar && value) {
@@ -477,6 +482,18 @@
 	};
 
 	const isWindows = /Windows/i.test(navigator.userAgent);
+
+	// Reactive statement to log user changes
+	$: if ($user !== undefined && $user !== null) {
+		console.log('AppSidebar - User updated:', {
+			id: $user?.id,
+			email: $user?.email,
+			name: $user?.name,
+			role: $user?.role,
+			permissions: $user?.permissions,
+			fullUser: $user
+		});
+	}
 </script>
 
 <ArchivedChatsModal
@@ -972,7 +989,8 @@
 							<a
 								id="sidebar-agents-library-button"
 								class="grow flex items-center space-x-3 rounded-2xl px-2.5 py-2 hover:bg-gray-100 dark:hover:bg-gray-900 transition"
-								href="http://private-ai-server-1-ai-agents-workflows--9f4642-13-237-73-172.traefik.me/?userRole={$user?.role}"
+								href="http://private-ai-server-1-ai-agents-workflows--9f4642-13-237-73-172.traefik.me/?userRole={$user?.role ||
+									'user'}"
 								data-testid="agents-library-expanded"
 								target="_blank"
 								rel="noopener noreferrer"
