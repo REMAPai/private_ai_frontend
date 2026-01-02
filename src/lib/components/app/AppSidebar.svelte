@@ -719,7 +719,7 @@
 						</Tooltip>
 					</div>
 				{/if}
-<!-- 
+				<!-- 
 				<div class="">
 					<Tooltip content={$i18n.t('Agents Library')} placement="right">
 						<a
@@ -985,7 +985,7 @@
 					{/if}
 
 					{#if $user !== undefined && $user !== null}
-						<div class="px-[0.4375rem] flex justify-center text-gray-800 dark:text-gray-200">
+						<!-- <div class="px-[0.4375rem] flex justify-center text-gray-800 dark:text-gray-200">
 							<a
 								id="sidebar-agents-library-button"
 								class="grow flex items-center space-x-3 rounded-2xl px-2.5 py-2 hover:bg-gray-100 dark:hover:bg-gray-900 transition"
@@ -1020,7 +1020,7 @@
 									<div class=" self-center text-sm font-primary">{$i18n.t('Agents Library')}</div>
 								</div>
 							</a>
-						</div>
+						</div> -->
 					{/if}
 				</div>
 

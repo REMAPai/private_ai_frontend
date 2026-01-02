@@ -817,7 +817,7 @@
 
 				<a href="/" class="flex flex-1 px-1.5" on:click={newChatHandler}>
 					<div
-						id="sidebar-webui-name"
+						id="sidebar-webui-name"id="sidebar-workspace
 						class=" self-center font-medium text-gray-850 dark:text-white font-primary"
 					>
 						{$WEBUI_NAME}
