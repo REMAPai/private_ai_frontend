@@ -972,8 +972,7 @@
 							<a
 								id="sidebar-agents-library-button"
 								class="grow flex items-center space-x-3 rounded-2xl px-2.5 py-2 hover:bg-gray-100 dark:hover:bg-gray-900 transition"
-								href="http://private-ai-server-1-ai-agents-workflows--9f4642-13-237-73-172.traefik.me/?userRole={$user?.role ||
-									'user'}"
+								href="http://private-ai-server-1-ai-agents-workflows--9f4642-13-237-73-172.traefik.me/?userRole={$user?.role}"
 								data-testid="agents-library-expanded"
 								target="_blank"
 								rel="noopener noreferrer"
