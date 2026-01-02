@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      no_cache: true
 
     # IMPORTANT (Dokploy): don't set container_name
     # It breaks multi-instance and can cause issues with Dokploy logs/metrics.
