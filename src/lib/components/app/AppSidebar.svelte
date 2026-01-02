@@ -1,4 +1,9 @@
 <script lang="ts">
+	// Log immediately when script loads (before component renders)
+	console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+	console.log('[AppSidebar] 📦 Script loaded - Component file is being processed');
+	console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
 	import { toast } from 'svelte-sonner';
 	import { v4 as uuidv4 } from 'uuid';
 
@@ -367,12 +372,16 @@
 
 	let unsubscribers = [];
 	onMount(async () => {
+		console.log('[AppSidebar] 🚀 Component mounted');
 		await showSidebar.set(!$mobile ? localStorage.sidebar === 'true' : false);
 
-		// Log user object for debugging
-		console.log('AppSidebar - User object:', $user);
-		console.log('AppSidebar - User role:', $user?.role);
-		console.log('AppSidebar - User full details:', JSON.stringify($user, null, 2));
+		// Log initial user state
+		console.log('[AppSidebar] Initial user state:', {
+			user: $user,
+			role: $user?.role,
+			isUndefined: $user === undefined,
+			isNull: $user === null
+		});
 
 		unsubscribers = [
 			mobile.subscribe((value) => {
@@ -483,16 +492,22 @@
 
 	const isWindows = /Windows/i.test(navigator.userAgent);
 
-	// Reactive statement to log user changes
+	// Reactive statement to log user changes - this will fire when user is loaded
 	$: if ($user !== undefined && $user !== null) {
-		console.log('AppSidebar - User updated:', {
-			id: $user?.id,
-			email: $user?.email,
-			name: $user?.name,
-			role: $user?.role,
-			permissions: $user?.permissions,
-			fullUser: $user
-		});
+		console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+		console.log('[AppSidebar] ✅ USER LOADED');
+		console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+		console.log('User ID:', $user?.id);
+		console.log('User Email:', $user?.email);
+		console.log('User Name:', $user?.name);
+		console.log('User Role:', $user?.role);
+		console.log('User Permissions:', $user?.permissions);
+		console.log('Full User Object:', $user);
+		console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+	} else if ($user === undefined) {
+		console.log('[AppSidebar] ⏳ User is undefined (not loaded yet)');
+	} else if ($user === null) {
+		console.log('[AppSidebar] ❌ User is null (no user logged in)');
 	}
 </script>
 
@@ -724,8 +739,7 @@
 					<Tooltip content={$i18n.t('Agents Library')} placement="right">
 						<a
 							class=" cursor-pointer flex rounded-xl hover:bg-gray-100 dark:hover:bg-gray-850 transition group"
-							href="http://private-ai-server-1-ai-agents-workflows--9f4642-13-237-73-172.traefik.me/?userRole={$user?.role ||
-								'user'}"
+							href="http://private-ai-server-1-ai-agents-workflows--9f4642-13-237-73-172.traefik.me/?userRole={$user?.role}"
 							id="agents-library-link-collapsed"
 							target="_blank"
 							rel="noopener noreferrer"

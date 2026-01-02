@@ -359,6 +359,16 @@
 
 	let unsubscribers = [];
 	onMount(async () => {
+		console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+		console.log('[Sidebar] 🚀 Component mounted');
+		console.log('[Sidebar] Initial user state:', {
+			user: $user,
+			role: $user?.role,
+			isUndefined: $user === undefined,
+			isNull: $user === null
+		});
+		console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
 		await showSidebar.set(!$mobile ? localStorage.sidebar === 'true' : false);
 
 		unsubscribers = [
@@ -469,6 +479,24 @@
 	};
 
 	const isWindows = /Windows/i.test(navigator.userAgent);
+
+	// Reactive statement to log user changes - this will fire when user is loaded
+	$: if ($user !== undefined && $user !== null) {
+		console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+		console.log('[Sidebar] ✅ USER LOADED');
+		console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+		console.log('User ID:', $user?.id);
+		console.log('User Email:', $user?.email);
+		console.log('User Name:', $user?.name);
+		console.log('User Role:', $user?.role);
+		console.log('User Permissions:', $user?.permissions);
+		console.log('Full User Object:', $user);
+		console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+	} else if ($user === undefined) {
+		console.log('[Sidebar] ⏳ User is undefined (not loaded yet)');
+	} else if ($user === null) {
+		console.log('[Sidebar] ❌ User is null (no user logged in)');
+	}
 </script>
 
 <ArchivedChatsModal
@@ -700,7 +728,8 @@
 					<Tooltip content={$i18n.t('Agents Library')} placement="right">
 						<a
 							class=" cursor-pointer flex rounded-xl hover:bg-gray-100 dark:hover:bg-gray-850 transition group"
-							href="http://private-ai-server-1-ai-agents-workflows--9f4642-13-237-73-172.traefik.me/?userRole=user"
+							href="http://private-ai-server-1-ai-agents-workflows--9f4642-13-237-73-172.traefik.me/?userRole={$user?.role ||
+								'user'}"
 							id="agents-library-link-collapsed"
 							target="_blank"
 							rel="noopener noreferrer"
@@ -961,7 +990,8 @@
 						<a
 							id="sidebar-agents-library-button"
 							class="grow flex items-center space-x-3 rounded-2xl px-2.5 py-2 hover:bg-gray-100 dark:hover:bg-gray-900 transition"
-							href="http://private-ai-server-1-ai-agents-workflows--9f4642-13-237-73-172.traefik.me/?userRole=user"
+							href="http://private-ai-server-1-ai-agents-workflows--9f4642-13-237-73-172.traefik.me/?userRole={$user?.role ||
+								'user'}"
 							data-testid="agents-library-expanded"
 							target="_blank"
 							rel="noopener noreferrer"
