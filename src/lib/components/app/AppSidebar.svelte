@@ -719,7 +719,7 @@
 						</Tooltip>
 					</div>
 				{/if}
-
+<!-- 
 				<div class="">
 					<Tooltip content={$i18n.t('Agents Library')} placement="right">
 						<a
@@ -753,7 +753,7 @@
 							</div>
 						</a>
 					</Tooltip>
-				</div>
+				</div> -->
 			</div>
 		</button>
 

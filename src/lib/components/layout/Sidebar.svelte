@@ -696,7 +696,7 @@
 					</div>
 				{/if}
 
-				<div class="">
+				<!-- <div class="">
 					<Tooltip content={$i18n.t('Agents Library')} placement="right">
 						<a
 							class=" cursor-pointer flex rounded-xl hover:bg-gray-100 dark:hover:bg-gray-850 transition group"
@@ -728,7 +728,7 @@
 							</div>
 						</a>
 					</Tooltip>
-				</div>
+				</div> -->
 			</div>
 		</button>
 
