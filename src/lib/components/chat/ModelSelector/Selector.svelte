@@ -33,6 +33,7 @@
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Switch from '$lib/components/common/Switch.svelte';
 	import ChatBubbleOval from '$lib/components/icons/ChatBubbleOval.svelte';
+	import DataRetentionModal from '../DataRetentionModal.svelte';
 
 	import ModelItem from './ModelItem.svelte';
 
@@ -73,6 +74,10 @@
 
 	let ollamaVersion = null;
 	let selectedModelIdx = 0;
+
+	// Data retention modal state
+	let showDataRetentionModal = false;
+	let pendingModelValue = null;
 
 	const fuse = new Fuse(
 		items.map((item) => {
@@ -554,10 +559,30 @@
 						{pinModelHandler}
 						{unloadModelHandler}
 						onClick={() => {
-							value = item.value;
-							selectedModelIdx = index;
+							// Check if this is a third-party model (external OpenAI/Google/Gemini)
+							// Either by connection_type or by having an 'External' tag
+							const hasExternalTag = (item.model?.info?.meta?.tags ?? []).some(
+								(tag) => tag.name?.toLowerCase() === 'external'
+							);
+							
+							const isThirdPartyModel = 
+								(item.model?.owned_by === 'openai' && 
+								item.model?.connection_type === 'external' &&
+								!item.model?.preset) ||
+								hasExternalTag;
 
-							show = false;
+							if (isThirdPartyModel) {
+								// Store the pending selection and show modal
+								pendingModelValue = item.value;
+								selectedModelIdx = index;
+								show = false;
+								showDataRetentionModal = true;
+							} else {
+								// Directly set the value for non-third-party models
+								value = item.value;
+								selectedModelIdx = index;
+								show = false;
+							}
 						}}
 					/>
 				{:else}
@@ -657,3 +682,13 @@
 		</slot>
 	</DropdownMenu.Content>
 </DropdownMenu.Root>
+
+<DataRetentionModal
+	bind:show={showDataRetentionModal}
+	onConfirm={() => {
+		if (pendingModelValue) {
+			value = pendingModelValue;
+			pendingModelValue = null;
+		}
+	}}
+/>
