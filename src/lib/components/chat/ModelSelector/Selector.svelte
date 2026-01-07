@@ -560,10 +560,16 @@
 						{unloadModelHandler}
 						onClick={() => {
 							// Check if this is a third-party model (external OpenAI/Google/Gemini)
+							// Either by connection_type or by having an 'External' tag
+							const hasExternalTag = (item.model?.info?.meta?.tags ?? []).some(
+								(tag) => tag.name?.toLowerCase() === 'external'
+							);
+							
 							const isThirdPartyModel = 
-								item.model?.owned_by === 'openai' && 
+								(item.model?.owned_by === 'openai' && 
 								item.model?.connection_type === 'external' &&
-								!item.model?.preset;
+								!item.model?.preset) ||
+								hasExternalTag;
 
 							if (isThirdPartyModel) {
 								// Store the pending selection and show modal

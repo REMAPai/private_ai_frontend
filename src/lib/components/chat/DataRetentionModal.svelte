@@ -23,7 +23,7 @@
 			</div>
 
 			<div class="text-sm text-gray-700 dark:text-gray-300 mb-6 pb-3 border-b-2 border-red-500/30">
-				{$i18n.t('By choosing this model, your data is retained for 30 days, then automatically deleted.')}
+				{$i18n.t('By choosing this model, your data will be retained for 30 days, then gets deleted automatically.')}
 			</div>
 
 			<div class="flex justify-end">
