@@ -559,26 +559,19 @@
 						{pinModelHandler}
 						{unloadModelHandler}
 						onClick={() => {
-							// Check if this is a third-party model (external OpenAI/Google/Gemini)
-							// Either by connection_type or by having an 'External' tag
+							// Check if model has an 'External' tag
 							const hasExternalTag = (item.model?.info?.meta?.tags ?? []).some(
 								(tag) => tag.name?.toLowerCase() === 'external'
 							);
-							
-							const isThirdPartyModel = 
-								(item.model?.owned_by === 'openai' && 
-								item.model?.connection_type === 'external' &&
-								!item.model?.preset) ||
-								hasExternalTag;
 
-							if (isThirdPartyModel) {
+							if (hasExternalTag) {
 								// Store the pending selection and show modal
 								pendingModelValue = item.value;
 								selectedModelIdx = index;
 								show = false;
 								showDataRetentionModal = true;
 							} else {
-								// Directly set the value for non-third-party models
+								// Directly set the value for non-external models
 								value = item.value;
 								selectedModelIdx = index;
 								show = false;

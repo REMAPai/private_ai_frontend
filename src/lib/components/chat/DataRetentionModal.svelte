@@ -22,13 +22,13 @@
 				</div>
 			</div>
 
-			<div class="text-sm text-gray-700 dark:text-gray-300 mb-6 pb-3 border-b-2 border-red-500/30">
+			<div class="text-sm text-gray-700 dark:text-gray-300 mb-6">
 				{$i18n.t('By choosing this model, your data will be retained for 30 days, then gets deleted automatically.')}
 			</div>
 
 			<div class="flex justify-end">
 				<button
-					class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors"
+					class="px-5 py-2.5 bg-gray-900 hover:bg-gray-850 text-gray-100 dark:bg-gray-100 dark:hover:bg-white dark:text-gray-800 font-semibold rounded-lg transition-colors shadow-sm"
 					on:click={handleConfirm}
 					type="button"
 				>
