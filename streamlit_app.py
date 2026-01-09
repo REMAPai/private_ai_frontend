@@ -749,6 +749,37 @@ elif page == "Model Management":
         st.subheader("Existing Models")
         models_df = get_table_data(conn, "token_tracking_model_pricing", limit=1000)
         if models_df is not None and not models_df.empty:
+            # Display models with delete option
+            for idx, row in models_df.iterrows():
+                model_id = row.get("id", "Unknown")
+                provider = row.get("provider", "Unknown")
+                name = row.get("name", "Unknown")
+
+                with st.expander(f"{model_id} ({provider}) - {name}"):
+                    col_a, col_b = st.columns([3, 1])
+                    with col_a:
+                        # Show all model details
+                        st.json(row.to_dict())
+
+                    with col_b:
+                        if st.button(
+                            "Delete from DB",
+                            key=f"delete_model_{idx}",
+                            type="secondary",
+                            use_container_width=True,
+                        ):
+                            delete_query = (
+                                "DELETE FROM token_tracking_model_pricing WHERE id = ?"
+                            )
+                            result = execute_query(conn, delete_query, (model_id,))
+
+                            if result is not None and result > 0:
+                                st.success(f"Model '{model_id}' deleted successfully.")
+                                st.rerun()
+                            elif result == 0:
+                                st.warning("No rows deleted. Model may not exist.")
+
+            st.caption("Full Table View")
             st.dataframe(models_df, use_container_width=True, hide_index=True)
         else:
             st.info("No models found")
